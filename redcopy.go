@@ -20,10 +20,10 @@ import (
 )
 
 var (
-	pcapFile      = flag.String("f", "proxy.pcap", "offline pcap file. If is empty redcopy use live capture")
+	pcapFile      = flag.String("f", "", "offline pcap file. If is empty redcopy use live capture")
 	device        = flag.String("i", "eth0", "captured device")
-	captureAddr   = flag.String("addr", "127.0.0.1:9528", "captured address and port, for example, 127.0.0.1:8080")
-	copyserver    = flag.String("s", "127.0.0.1:6379", "redis server for receiving captured redis commands")
+	captureAddr   = flag.String("addr", "", "captured address and port, for example, 127.0.0.1:8080")
+	copyserver    = flag.String("s", "", "redis server for receiving captured redis commands")
 	debugResponse = flag.Bool("d", false, "should display responses from copyserver")
 )
 
@@ -40,15 +40,6 @@ func main() {
 	flag.Parse()
 
 	conns = make(map[string]*connection)
-
-	if *captureAddr == "" {
-		log.Fatalf("empty captured address")
-	}
-
-	host, port, err := net.SplitHostPort(*captureAddr)
-	if err != nil {
-		log.Fatalf("invalid captured address: %v", err)
-	}
 
 	var w io.Writer
 	if *copyserver != "" {
@@ -77,12 +68,18 @@ func main() {
 	}
 	defer handle.Close()
 
-	var filter = "tcp and dst port " + port + " and dst host " + host
-	err = handle.SetBPFFilter(filter)
-	if err != nil {
-		log.Fatalf("failed to set filter: %v", err)
-	}
+	if *captureAddr != "" {
+		host, port, err := net.SplitHostPort(*captureAddr)
+		if err != nil {
+			log.Fatalf("invalid captured address: %v", err)
+		}
 
+		var filter = "tcp and dst port " + port + " and dst host " + host
+		err = handle.SetBPFFilter(filter)
+		if err != nil {
+			log.Fatalf("failed to set filter: %v", err)
+		}
+	}
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	for packet := range packetSource.Packets() {
 		var clientIP, clientPort string
